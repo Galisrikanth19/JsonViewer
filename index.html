@@ -22,35 +22,30 @@
         .tabs {
             background: #f0f0f0;
             display: flex;
+            align-items: center;
+            border-bottom: 1px solid #ccc;
+            padding: 6px 10px;
         }
 
         .tab {
-            padding: 8px 20px;
+            padding: 5px 12px;
             cursor: pointer;
-            border-bottom: none;
-            margin-right: 2px;
-            background: #d0d0d0;
+            border: 1px solid #aaa;
+            border-radius: 3px;
+            margin-right: 5px;
+            background: #fff;
             color: #333;
-            font-size: 14px;
+            font-size: 13px;
         }
 
         .tab.active {
             background: yellow;
-            border-bottom: 1px solid white;
-            position: relative;
-            z-index: 1;
+            border-color: #c9b200;
         }
 
-        .toolbar {
-            background: #f0f0f0;
-            border-bottom: 1px solid #ccc;
-            padding: 8px 10px;
-            display: flex;
-            gap: 5px;
-            flex-wrap: wrap;
-        }
-
-        .toolbar button {
+        .format-btn {
+            margin-left: auto;
+            margin-right: 0;
             padding: 5px 12px;
             background: #fff;
             border: 1px solid #aaa;
@@ -60,12 +55,12 @@
             color: #333;
         }
 
-        .toolbar button:hover {
+        .format-btn:hover {
             background: #e8e8e8;
             border-color: #888;
         }
 
-        .toolbar button:active {
+        .format-btn:active {
             background: #d0d0d0;
         }
 
@@ -148,6 +143,7 @@
             width: 12px;
             height: 12px;
             vertical-align: middle;
+            margin-right: 6px;
         }
 
         .json-toggle img {
@@ -183,36 +179,19 @@
             font-size: 14px;
         }
 
-        .file-input {
-            display: none;
-        }
-
-        .toolbar-right {
-            margin-left: auto;
-        }
     </style>
 </head>
 <body>
     <div class="tabs">
         <div class="tab" data-tab="viewer" onclick="switchTab('viewer')">Viewer</div>
         <div class="tab active" data-tab="text" onclick="switchTab('text')">Text</div>
-    </div>
-
-    <div class="toolbar">
-        <button onclick="pasteFromClipboard()">Paste</button>
-        <button onclick="copyToClipboard()">Copy</button>
-        <button onclick="formatJSON()">Format</button>
-        <button onclick="removeWhitespace()">Remove white space</button>
-        <button onclick="clearAll()">Clear</button>
-        <button onclick="document.getElementById('fileInput').click()">Load JSON data</button>
-        <input type="file" id="fileInput" class="file-input" accept=".json" onchange="loadFile(event)">
-        <button class="toolbar-right" onclick="showAbout()">About</button>
+        <button type="button" class="format-btn" onclick="formatJSON()">Format</button>
     </div>
 
     <div class="content-area">
         <div class="viewer-view" id="viewerView">
             <div class="empty-state">
-                Paste JSON data or load from file to view
+                Paste or type JSON data to view
             </div>
         </div>
         <div class="text-view active" id="textView">
@@ -242,28 +221,6 @@
             }
         }
 
-        function pasteFromClipboard() {
-            navigator.clipboard.readText().then(text => {
-                document.getElementById('textInput').value = text;
-                parseAndDisplay();
-            }).catch(err => {
-                alert('Unable to read from clipboard. Please paste manually.');
-            });
-        }
-
-        function copyToClipboard() {
-            const text = document.getElementById('textInput').value;
-            if (!text) {
-                alert('Nothing to copy');
-                return;
-            }
-            navigator.clipboard.writeText(text).then(() => {
-                alert('Copied to clipboard');
-            }).catch(err => {
-                alert('Failed to copy to clipboard');
-            });
-        }
-
         function formatJSON() {
             const input = document.getElementById('textInput').value.trim();
             if (!input) return;
@@ -277,48 +234,12 @@
             }
         }
 
-        function removeWhitespace() {
-            const input = document.getElementById('textInput').value.trim();
-            if (!input) return;
-
-            try {
-                const parsed = JSON.parse(input);
-                document.getElementById('textInput').value = JSON.stringify(parsed);
-                parseAndDisplay();
-            } catch (error) {
-                alert('Invalid JSON: ' + error.message);
-            }
-        }
-
-        function clearAll() {
-            document.getElementById('textInput').value = '';
-            document.getElementById('viewerView').innerHTML = '<div class="empty-state">Paste JSON data or load from file to view</div>';
-            currentData = null;
-        }
-
-        function loadFile(event) {
-            const file = event.target.files[0];
-            if (!file) return;
-
-            const reader = new FileReader();
-            reader.onload = function(e) {
-                document.getElementById('textInput').value = e.target.result;
-                parseAndDisplay();
-            };
-            reader.readAsText(file);
-            event.target.value = ''; // Reset file input
-        }
-
-        function showAbout() {
-            alert('JSON Viewer\n\nA simple tool to view and format JSON data.\n\nFeatures:\n- View JSON in tree structure\n- Format and minify JSON\n- Load from file\n- Copy to clipboard');
-        }
-
         function parseAndDisplay() {
             const input = document.getElementById('textInput').value.trim();
             const viewerView = document.getElementById('viewerView');
 
             if (!input) {
-                viewerView.innerHTML = '<div class="empty-state">Paste JSON data or load from file to view</div>';
+                viewerView.innerHTML = '<div class="empty-state">Paste or type JSON data to view</div>';
                 currentData = null;
                 return;
             }
@@ -341,7 +262,13 @@
             viewerView.appendChild(tree);
         }
 
-        function renderValue(value, depth) {
+        function isExpandableValue(value) {
+            if (Array.isArray(value)) return value.length > 0;
+            if (value && typeof value === 'object') return Object.keys(value).length > 0;
+            return false;
+        }
+
+        function renderValue(value, depth, includeToggle = true) {
             if (value === null) {
                 return `<span class="json-null">null</span>`;
             }
@@ -365,7 +292,9 @@
 
                 const id = 'node_' + Math.random().toString(36).substr(2, 9);
                 let html = `<span class="json-expandable" onclick="toggleNode('${id}')">`;
-                html += `<span class="json-toggle" id="toggle_${id}"><img src="plus.png" alt="+"></span>`;
+                if (includeToggle) {
+                    html += `<span class="json-toggle" id="toggle_${id}"><img src="plus.png" alt="+"></span>`;
+                }
                 html += `<span class="json-bracket">[</span>`;
                 html += `</span>`;
                 html += `<div class="json-line json-collapsed" id="${id}">`;
@@ -390,15 +319,53 @@
 
                 const id = 'node_' + Math.random().toString(36).substr(2, 9);
                 let html = `<span class="json-expandable" onclick="toggleNode('${id}')">`;
-                html += `<span class="json-toggle" id="toggle_${id}"><img src="plus.png" alt="+"></span>`;
+                if (includeToggle) {
+                    html += `<span class="json-toggle" id="toggle_${id}"><img src="plus.png" alt="+"></span>`;
+                }
                 html += `<span class="json-bracket">{</span>`;
                 html += `</span>`;
                 html += `<div class="json-line json-collapsed" id="${id}">`;
 
                 keys.forEach((key, index) => {
                     html += `<div>`;
-                    html += `<span class="json-key">${escapeHtml(key)}</span>: `;
-                    html += renderValue(value[key], depth + 1);
+                    const childValue = value[key];
+
+                    if (isExpandableValue(childValue)) {
+                        const childId = 'node_' + Math.random().toString(36).substr(2, 9);
+                        const openBracket = Array.isArray(childValue) ? '[' : '{';
+                        const closeBracket = Array.isArray(childValue) ? ']' : '}';
+
+                        html += `<span class="json-expandable" onclick="toggleNode('${childId}')">`;
+                        html += `<span class="json-toggle" id="toggle_${childId}"><img src="plus.png" alt="+"></span>`;
+                        html += `<span class="json-key">${escapeHtml(key)}</span>: `;
+                        html += `<span class="json-bracket">${openBracket}</span>`;
+                        html += `</span>`;
+
+                        html += `<div class="json-line json-collapsed" id="${childId}">`;
+                        if (Array.isArray(childValue)) {
+                            childValue.forEach((item, itemIndex) => {
+                                html += `<div>`;
+                                html += renderValue(item, depth + 1);
+                                if (itemIndex < childValue.length - 1) html += '<span class="json-bracket">,</span>';
+                                html += `</div>`;
+                            });
+                        } else {
+                            const childKeys = Object.keys(childValue);
+                            childKeys.forEach((childKey, childIndex) => {
+                                html += `<div>`;
+                                html += `<span class="json-key">${escapeHtml(childKey)}</span>: `;
+                                html += renderValue(childValue[childKey], depth + 1);
+                                if (childIndex < childKeys.length - 1) html += '<span class="json-bracket">,</span>';
+                                html += `</div>`;
+                            });
+                        }
+                        html += `</div>`;
+                        html += `<span class="json-bracket">${closeBracket}</span>`;
+                    } else {
+                        html += `<span class="json-key">${escapeHtml(key)}</span>: `;
+                        html += renderValue(childValue, depth + 1);
+                    }
+
                     if (index < keys.length - 1) html += '<span class="json-bracket">,</span>';
                     html += `</div>`;
                 });
